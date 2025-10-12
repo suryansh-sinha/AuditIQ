@@ -1,2 +1,4 @@
 .env
 test.py
+.DS_Store
+mismatch_summary.txt
