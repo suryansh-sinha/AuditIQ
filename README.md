@@ -1,260 +1,150 @@
-# Three-Way Invoice Matching System
+# 🧠 **AuditIQ**
 
-A sophisticated multi-agent system for automated three-way matching in accounts payable, built with AutoGen v0.7.5 and Streamlit.
+**AuditIQ** is an **AI-powered multi-agent auditing system** that automates **three-way matching**, **exception detection**, and **risk analysis** in Accounts Payable operations.  
+Built with **AutoGen**, **Streamlit**, and **LLM-based reasoning**, it provides intelligent, transparent, and auditable insights across invoices, purchase orders, and goods receipts.
 
-## 🎯 Problem Statement
+---
 
-Organizations process thousands of vendor payments requiring verification of:
-- Purchase Order existence and approval
-- Goods Receipt confirmation
-- Invoice amount/quantity matching with PO and GR
+## 🚀 **Overview**
 
-Manual matching is error-prone and can miss:
-- Fraud (fake invoices, overbilling)
-- Process failures (paying without receiving goods)
-- Data entry errors (wrong quantities/prices)
+Organizations often struggle with manual invoice verification, data inconsistencies, and fraud risks.  
+AuditIQ automates this process through a collaborative network of AI agents, each specializing in a specific financial audit task.
 
-## 🏗 Architecture
+It supports two modes:
+- **Default Mode** → Fully automated audit workflow  
+- **Query Mode** → Interactive data exploration through natural language queries  
 
-### Multi-Agent System
-The system uses AutoGen v0.7.5 to orchestrate five specialized agents:
+---
 
-1. **DataMapperAgent** - Analyzes CSV structures and creates column mappings
-2. **QueryAgent** - Translates natural language to pandas operations on raw data
-3. **MatchingAgent** - Executes three-way matching logic and identifies exceptions
-4. **AnalysisAgent** - Performs pattern analysis and risk assessment
-5. **ReportAgent** - Generates comprehensive audit reports
+## ⚡️ **Installation**
 
-### Data Flow
-```
- CSVs Upload → Data Mapping → Query Translation → Three-Way Matching → Pattern Analysis → Report
-      ↓             ↓               ↓                    ↓                   ↓              ↓
-[Audit Trail]   [Mappings]    [Pandas Code]        [Exceptions]        [Risk Scores]  [Report]
-```
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Python 3.8+
-- OpenAI API Key
-
-### Installation
-
-1. Clone the repository
 ```bash
-git clone <repository-url>
-cd invoice-matcher
-```
+# Clone repository
+git clone https://github.com/<your-username>/AuditIQ.git
+cd AuditIQ
 
-2. Install dependencies
-```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-3. Set up environment variables
-```bash
-# Create .env file
-echo "GEMINI_API_KEY=your-api-key-here" > .env
-```
+# Add your API key
+echo "GEMINI_API_KEY=your-api-key" > .env
 
-4. Generate sample data
-```bash
-python data_generator.py
-```
-
-5. Launch the application
-```bash
+# Launch app
 streamlit run app.py
 ```
 
-## 📁 Project Structure
+---
 
-```
-invoice-matcher/
-├── app.py                 # Streamlit UI application
-├── agents.py             # AutoGen multi-agent orchestration
-├── data_generator.py     # Synthetic data generation
-├── matcher.py            # Core three-way matching logic
-├── requirements.txt      # Python dependencies
-├── README.md            # Project documentation
-└── data/                # Generated/uploaded data files
-    ├── invoices.csv
-    ├── purchase_orders.csv
-    └── goods_receipts.csv
-```
+## ⚙️ **Core Workflow**
 
-## 🔍 Features
+### 🧾 **Default Mode – Automated Audit**
 
-### Natural Language Querying
-- "Find all invoices without purchase orders"
-- "Show me price variances over 15%"
-- "Which vendors have the most exceptions?"
-
-### Exception Detection
-- **NO_PO**: Invoices without purchase orders (fraud indicator)
-- **NO_GR**: Invoices without goods receipts (premature payment)
-- **QTY_MISMATCH**: Invoice quantity exceeds received quantity (overbilling)
-- **PRICE_VARIANCE**: Price differences exceeding threshold
-- **DUPLICATE**: Duplicate invoice detection
-
-### Reusable Control Tests
-Pre-configured audit tests that can be saved and rerun:
-- Missing PO Check
-- Price Variance >10%
-- Duplicate Invoice Detection
-- Quantity Overbilling
-- Missing Goods Receipt
-
-### Transparency & Audit Trail
-- Step-by-step reasoning display
-- Complete processing audit trail
-- Data lineage tracking
-- Reproducible results
-
-### Risk Assessment
-- Vendor risk profiling
-- Financial exposure calculation
-- Exception prioritization by severity
-- Temporal pattern analysis
-
-## 📊 Sample Data Generation
-
-The `data_generator.py` creates realistic test data with controlled mismatches:
-
-- **500 Purchase Orders** with vendor, item, quantity, price details
-- **450 Goods Receipts** linked to POs
-- **480 Invoices** with controlled exceptions:
-  - 380 perfect matches (baseline)
-  - 30 invoices without matching PO
-  - 25 invoices with quantity overbilling
-  - 20 invoices with price variance >10%
-  - 15 duplicate invoices
-  - 10 invoices without goods receipt
-
-## 🖥 User Interface
-
-### Main Features
-1. **Sidebar Configuration**
-   - API key setup
-   - Data upload/sample data loading
-   - Control test library
-
-2. **Query Interface**
-   - Natural language input
-   - Pre-defined control tests
-   - Real-time processing
-
-3. **Results Dashboard**
-   - Key metrics display
-   - Exception details table
-   - Visual analytics charts
-   - Audit report generation
-   - Processing audit trail
-
-4. **Export Capabilities**
-   - Download exceptions CSV
-   - Export markdown audit report
-   - Save control test results
-
-## 🤖 Agent Details
-
-### DataMapperAgent
-Analyzes uploaded CSVs to identify:
-- Column purposes and data types
-- Join keys between tables
-- Data quality issues
-- Mapping recommendations
-
-### MatchingAgent
-Performs core matching with:
-- Invoice to PO matching
-- PO to GR verification
-- Exception identification
-- Financial impact calculation
-
-### AnalysisAgent
-Identifies patterns including:
-- Vendor risk profiles
-- Temporal trends
-- Systemic vs isolated issues
-- Fraud indicators
-
-### ReportAgent
-Generates professional reports with:
-- Executive summary
-- Detailed findings
-- Risk assessment
-- Actionable recommendations
-
-## 🔧 Configuration
-
-### Environment Variables
-```bash
-OPENAI_API_KEY=your-openai-api-key
+```markdown
+User uploads CSVs
+↓
+1️⃣ DataMapperAgent → Schema & key analysis
+2️⃣ MatchingAgent → Invoice–PO–GR reconciliation
+3️⃣ AnalysisAgent → Risk synthesis & fraud detection
+4️⃣ ReportAgent → LLM-generated markdown report
+↓
+✅ User receives full audit report with risk insights
 ```
 
-### Matching Thresholds
-Configure in `matcher.py`:
-```python
-ThreeWayMatcher(
-    price_variance_threshold=0.10,  # 10% price variance
-    qty_variance_threshold=0.05     # 5% quantity variance
-)
+### 🔍 **Query Mode – Data Exploration**
+
+```markdown
+User enters Query Mode
+↓
+QueryAgent interprets natural language queries
+↓
+Returns filtered results, explanations, and generated Python code
 ```
 
-## 🧪 Testing
+---
 
-Run sample queries:
-```python
-# Test individual components
-python agents.py  # Tests agent orchestration
-python matcher.py # Tests matching logic
-python data_generator.py # Generates test data
+## 🧠 Agents
+
+| Agent               | Role                 | Core Responsibilities                                                 |
+| ------------------- | -------------------- | --------------------------------------------------------------------- |
+| **DataMapperAgent** | Schema Understanding | Detects and aligns columns, identifies data quality issues            |
+| **MatchingAgent**   | Three-Way Matching   | Matches Invoices ↔ POs ↔ GRs and flags exceptions                     |
+| **AnalysisAgent**   | Risk Analysis        | Identifies vendor anomalies, fraud indicators, and exception patterns |
+| **ReportAgent**     | Report Generation    | Uses an LLM to produce professional markdown audit reports            |
+| **QueryAgent**      | Interactive Querying | Translates natural language queries into pandas code for analysis     |
+
+---
+
+## 💡 Key Features
+
+- 🔗 Automated 3-Way Matching — Seamlessly reconcile invoices, POs, and GRs
+- ⚠️ Exception Detection — Detects missing POs, quantity mismatches, duplicates, and overbilling
+- 🧩 Schema Intelligence — Automatically maps CSVs of varying formats
+- 📊 Risk Assessment — Scores vendor risk and identifies high-exposure patterns
+- 🧠 LLM-Generated Reports — Produces human-readable markdown reports
+- 💬 Natural Language Querying — “Show invoices without purchase orders”
+- 🧾 Full Audit Trail — Transparent, reproducible, and explainable
+
+---
+
+## 🧑‍💻 **Sample Natural Language Queries**
+
+| Example Query                                      | Agent Involved             | Description                            |
+| -------------------------------------------------- | -------------------------- | -------------------------------------- |
+| “Find all invoices without purchase orders”        | MatchingAgent + QueryAgent | Detects invoices missing PO references |
+| “Show me price variances above 15%”                | MatchingAgent              | Flags mismatched pricing               |
+| “Which vendors have the most exceptions?”          | AnalysisAgent              | Aggregates exceptions by vendor        |
+| “List invoices with duplicate IDs”                 | MatchingAgent              | Identifies duplicates                  |
+| “What is the financial exposure from overbilling?” | AnalysisAgent              | Calculates total overpayment risk      |
+| “Generate an executive summary report”             | ReportAgent                | Produces LLM-based markdown report     |
+
+---
+
+## 🖥️ **User Interface Flow**
+
+```text
+1️⃣ Launch Streamlit app
+2️⃣ Upload invoice, PO, and GR CSV files
+3️⃣ Choose:
+   - Automated Audit Mode → Run full analysis
+   - Query Mode → Ask data-driven questions
+4️⃣ Review:
+   - Exception tables
+   - Vendor risk scores
+   - Generated audit report (Markdown or PDF)
+5️⃣ Download report or share via dashboard
 ```
 
-## 📝 Sample Queries
+---
 
-- "Find all invoices without purchase orders"
-- "Show me duplicate invoices"
-- "Find invoices with price variance over 10%"
-- "Which vendors have the most exceptions?"
-- "Show all critical risk exceptions"
-- "Find quantity mismatches"
+## 📚 **Tech Stack**
 
-## 🚀 Deployment
+- 🧩 AutoGen v0.7.5 — Multi-agent orchestration framework
+- 🤖 Gemini 2.5 Flash — Natural language reasoning & report generation
+- 🧠 Pandas / NumPy — Data manipulation
+- 🎨 Streamlit — Interactive dashboard
+- 🧱 Pydantic / Dataclasses — Data model validation
 
-### Streamlit Cloud
-1. Push code to GitHub
-2. Connect repository at share.streamlit.io
-3. Set OPENAI_API_KEY in secrets
-4. Deploy
+---
 
-### Local Deployment
-```bash
-streamlit run app.py --server.port 8501
-```
+## 📄 **License**
 
-## 📊 Performance Metrics
+Released under the MIT License.
+You are free to use, modify, and distribute with attribution.
 
-With sample data:
-- Processes 480 invoices in <5 seconds
-- Identifies 100 exceptions across 5 categories
-- Calculates $127,450 total financial exposure
-- Generates comprehensive audit report
+---
 
-## 📄 License
+## 🤝 **Contributing**
 
-MIT License - See LICENSE file for details
+Contributions are welcome!
+- Fork the repo
+- Create a feature branch
+- Submit a PR with a clear description
 
-## 🤝 Contributing
+---
 
-Contributions welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
+## 🧭 **Future Enhancements**
 
-## 📧 Contact
-
-For questions or support, please open an issue on GitHub.
+- Automated PDF export of reports
+- Historical audit trend analysis
+- Real-time vendor anomaly tracking
+- Support for SAP / Oracle ERP data formats
