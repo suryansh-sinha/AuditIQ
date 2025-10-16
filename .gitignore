@@ -2,3 +2,9 @@
 test.py
 .DS_Store
 mismatch_summary.txt
+JSON Output.txt
+prompt.txt
+prototyping
+final workflow.txt
+data
+__pycache__

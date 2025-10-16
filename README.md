@@ -17,18 +17,19 @@ Manual matching is error-prone and can miss:
 ## 🏗 Architecture
 
 ### Multi-Agent System
-The system uses AutoGen v0.7.5 to orchestrate four specialized agents:
+The system uses AutoGen v0.7.5 to orchestrate five specialized agents:
 
 1. **DataMapperAgent** - Analyzes CSV structures and creates column mappings
-2. **MatchingAgent** - Executes three-way matching logic and identifies exceptions
-3. **AnalysisAgent** - Performs pattern analysis and risk assessment
-4. **ReportAgent** - Generates comprehensive audit reports
+2. **QueryAgent** - Translates natural language to pandas operations on raw data
+3. **MatchingAgent** - Executes three-way matching logic and identifies exceptions
+4. **AnalysisAgent** - Performs pattern analysis and risk assessment
+5. **ReportAgent** - Generates comprehensive audit reports
 
 ### Data Flow
 ```
- CSVs Upload → Data Mapping → Three-Way Matching → Pattern Analysis → Report Generation
-      ↓             ↓                 ↓                   ↓                   ↓
-[Audit Trail]   [Mappings]       [Exceptions]        [Risk Scores]    [Markdown Report]
+ CSVs Upload → Data Mapping → Query Translation → Three-Way Matching → Pattern Analysis → Report
+      ↓             ↓               ↓                    ↓                   ↓              ↓
+[Audit Trail]   [Mappings]    [Pandas Code]        [Exceptions]        [Risk Scores]  [Report]
 ```
 
 ## 🚀 Quick Start
@@ -240,17 +241,6 @@ With sample data:
 - Identifies 100 exceptions across 5 categories
 - Calculates $127,450 total financial exposure
 - Generates comprehensive audit report
-
-## 🔮 Future Enhancements
-
-- [ ] ML-based anomaly detection
-- [ ] Historical trend analysis
-- [ ] Email notification system
-- [ ] API endpoint for integration
-- [ ] Real-time ERP connection
-- [ ] Advanced fraud detection patterns
-- [ ] Multi-currency support
-- [ ] Batch processing capabilities
 
 ## 📄 License
 
