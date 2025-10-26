@@ -8,3 +8,5 @@ prototyping
 final workflow.txt
 data
 __pycache__
+.vscode
+eval_data

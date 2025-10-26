@@ -8,7 +8,7 @@ from typing import List, Dict, Tuple, Optional, Any
 @dataclass
 class MatchConfig:
     price_variance_threshold: float = 0.10
-    qty_tolerance: float = 0.05
+    qty_tolerance: float = 0.02
     duplicate_amount_round: int = 2
     use_fuzzy_vendor: bool = False
     fuzzy_threshold: int = 85
@@ -70,7 +70,7 @@ class ThreeWayMatcher:
                     mapping['item'] = cols[k]
                 if any(x in k for x in ['qty','quantity','units']):
                     mapping.setdefault('quantity', cols[k])
-                if any(x in k for x in ['price','unit_price','rate','cost']):
+                if any(x in k for x in ['price','unit_price','rate','cost','unit_cost','inv_rate','po_rate','unit_rate']):
                     mapping.setdefault('price', cols[k])
                 if any(x in k for x in ['amount','total','invoice_amount','value']):
                     mapping.setdefault('amount', cols[k])
@@ -106,7 +106,7 @@ class ThreeWayMatcher:
             if jk.get('vendor_check'):
                 resolved['vendor_join'] = jk['vendor_check']
 
-            # Validation Columns - FIXED to handle nested dict format
+            # Validation Columns
             if vc.get('quantities'):
                 for qty_entry in vc['quantities']:
                     if isinstance(qty_entry, dict):
@@ -164,7 +164,7 @@ class ThreeWayMatcher:
         resolved.setdefault('po_price', po_map.get('price'))
         resolved.setdefault('inv_amount', inv_map.get('amount'))
         
-        # Legacy fallbacks for backward compatibility
+        # Fallbacks for backward compatibility
         resolved.setdefault('quantity', resolved.get('inv_quantity'))
         resolved.setdefault('price', resolved.get('inv_price'))
         resolved.setdefault('amount', resolved.get('inv_amount'))
@@ -284,35 +284,84 @@ class ThreeWayMatcher:
         return inv, po, gr
         
     def detect_duplicates(self, inv: pd.DataFrame, mapping: Dict) -> Tuple[pd.DataFrame, List[Dict]]:
-        """Identify duplicates using NORMALIZED internal columns."""
+        """Identify duplicates using fuzzy amount matching to catch near-identical invoices
+        
+        Duplicate criteria:
+        - Same PO_ID
+        - Same Vendor
+        - Amount within 2% (to catch intentional slight variations)
+        - Optionally same item code for stricter matching
+        """
         exceptions = []
         
         if '_po_join' not in inv.columns or '_vendor_norm' not in inv.columns or '_amount_val' not in inv.columns:
             return inv, []
         
-        key = (
-            inv['_po_join'].astype(str) + '|' + 
-            inv['_vendor_norm'].astype(str) + '|' + 
-            inv['_amount_val'].round(self.cfg.duplicate_amount_round).astype(str)
-        )
+        # Track which invoices are duplicates
+        duplicate_refs = set()
         
-        inv['_dup_key'] = key
-        dup_mask = inv.duplicated(subset=['_dup_key'], keep=False)
+        # Group by PO + Vendor to find potential duplicates
+        grouped = inv.groupby(['_po_join', '_vendor_norm'])
         
-        if dup_mask.any():
-            dup_rows = inv[dup_mask]
-            for idx, r in dup_rows.iterrows():
-                exceptions.append({
-                    'exception_id': f"exc_dup::{r['_row_ref']}",
-                    'invoice_ref': r['_row_ref'],
-                    'type': 'DUPLICATE',
-                    'reason': 'Duplicate composite key detected',
-                    'financial_impact': float(r['_amount_val']),
-                    'evidence': {'dup_key': r['_dup_key']}
+        for (po_id, vendor), group in grouped:
+            if len(group) < 2:
+                continue  # Need at least 2 invoices to have duplicates
+            
+            # Get amounts and references
+            group_data = []
+            for idx, row in group.iterrows():
+                group_data.append({
+                    'index': idx,
+                    'row_ref': row['_row_ref'],
+                    'amount': row['_amount_val'],
+                    'item': row.get('_item_join', ''),
+                    'qty': row.get('_qty_val', 0)
                 })
+            
+            # Compare each pair of invoices in the group
+            for i in range(len(group_data)):
+                for j in range(i + 1, len(group_data)):
+                    inv_i = group_data[i]
+                    inv_j = group_data[j]
+                    
+                    # Calculate amount difference percentage
+                    avg_amount = (inv_i['amount'] + inv_j['amount']) / 2
+                    if avg_amount == 0:
+                        continue
+                    
+                    amount_diff_pct = abs(inv_i['amount'] - inv_j['amount']) / avg_amount
+                    
+                    # Check if amounts are within 2% of each other
+                    if amount_diff_pct <= 0.02:
+                        # Additional check: same item code (if available)
+                        same_item = (inv_i['item'] == inv_j['item']) if inv_i['item'] and inv_j['item'] else True
+                        
+                        if same_item:
+                            # Mark both as duplicates
+                            for inv_data in [inv_i, inv_j]:
+                                if inv_data['row_ref'] not in duplicate_refs:
+                                    duplicate_refs.add(inv_data['row_ref'])
+                                    
+                                    exceptions.append({
+                                        'exception_id': f"exc_dup::{inv_data['row_ref']}",
+                                        'invoice_ref': inv_data['row_ref'],
+                                        'type': 'DUPLICATE',
+                                        'reason': f'Duplicate detected: PO={po_id}, Vendor={vendor}, Amount≈${inv_data["amount"]:.2f} (±{amount_diff_pct:.1%})',
+                                        'financial_impact': float(inv_data['amount']),
+                                        'evidence': {
+                                            'po_id': str(po_id),
+                                            'vendor': str(vendor),
+                                            'amount': float(inv_data['amount']),
+                                            'amount_variance_pct': float(amount_diff_pct),
+                                            'duplicate_pair': True
+                                        }
+                                    })
         
-        # Keep all records but mark duplicates
-        inv['_is_duplicate'] = dup_mask
+        # Mark duplicates in the dataframe
+        inv['_is_duplicate'] = inv['_row_ref'].isin(duplicate_refs)
+        
+        print(f"   Duplicate Detection: Found {len(exceptions)} duplicate invoices across {len(duplicate_refs)} unique refs")
+        
         return inv, exceptions
     
     def match(
@@ -330,11 +379,11 @@ class ThreeWayMatcher:
         all_exceptions: List[Dict] = []
         matched_records: List[Dict] = []
 
-        # 1. Duplicates
+        # Duplicates
         inv, dup_excs = self.detect_duplicates(inv, mapping)
         all_exceptions.extend(dup_excs)
 
-        # 2. Join Invoices -> POs
+        # Join Invoices -> POs
         # Use both PO join and item join for better matching
         # Explicitly specify suffixes to avoid confusion
         po_subset = po[['_po_join', '_item_join', '_vendor_norm', '_row_ref', '_price_val', '_qty_val']].copy()
@@ -371,12 +420,12 @@ class ThreeWayMatcher:
         
         inv_with_po = inv_po[~no_po_mask].copy()
 
-        # 3. Join with GRs - FIXED: Rename _qty_val to avoid collision
+        # Join with GRs; Rename _qty_val to avoid collision
         gr_subset = gr[['_gr_join', '_item_join', '_row_ref', '_qty_val']].copy()
         gr_subset = gr_subset.rename(
             columns={
                 '_row_ref': '_row_ref_gr',
-                '_qty_val': '_qty_val_gr'  # CRITICAL FIX
+                '_qty_val': '_qty_val_gr'  # imp change
             }
         )
 
@@ -408,7 +457,7 @@ class ThreeWayMatcher:
 
         inv_with_gr = inv_po_gr[~no_gr_mask].copy()
 
-        # 4. Vectorized checks - Use the correct column names with suffixes
+        # Vectorized checks: Use the correct column names with suffixes
         # inv_with_gr now has:
         # - Invoice columns: _qty_val_inv, _price_val_inv, _amount_val_inv, _row_ref_inv
         # - PO columns: _qty_val_po, _price_val_po, _row_ref_po  
@@ -487,7 +536,7 @@ class ThreeWayMatcher:
             'exception_breakdown': exceptions_df['type'].value_counts().to_dict() if not exceptions_df.empty else {}
         }
 
-        # Vendor risk - FIXED: Use prepared inv DataFrame
+        # Vendor risk
         vendor_risk_df = None
         if not exceptions_df.empty:
             vendor_map = inv.set_index('_row_ref')['_vendor_norm'].to_dict()

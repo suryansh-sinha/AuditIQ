@@ -93,10 +93,7 @@ class DataMapperAgent:
         self.agent = None # Will be initialized in analyze_schemas
         self.data_schemas: Dict[str, Any] = {}
 
-    # -----------------------------------------------------------
-    #                       I. Private Helpers
-    # -----------------------------------------------------------
-
+    # Private Helpers
     def _summarize_input_df(self, df: pd.DataFrame) -> Dict[str, Any]:
         """Extracts schema summary (columns, types, nulls, samples)."""
         columns = df.columns.tolist()
@@ -133,6 +130,12 @@ class DataMapperAgent:
             -   **ID Columns:** Primary keys and foreign keys for individual transactions (Invoice IDs, PO IDs, GR IDs) and master data (Vendor IDs, Item/SKU Codes).
         3.  **Identify Data Quality Issues:** Look at null counts and sample values to flag potential issues (e.g., high null counts in a critical column, mixed data types, or inconsistent date formats).
         4.  **Confidence Score:** Assign a confidence score (0.0 to 1.0) based on the clarity of column names and the completeness of the data.
+
+        **IMPORTANT COLUMN NAME PATTERNS:**
+        -   "rate", "inv_rate", "po_rate", "unit_rate" → These are PRICE columns
+        -   "units", "inv_units", "recv_units", "ordered_units" → These are QUANTITY columns  
+        -   "net_amt", "gross_amt", "total_value", "amt" → These are AMOUNT columns
+        -   Be flexible with abbreviations: supp_cd = supplier code, itm_cd = item code, dt = date, recv = received
 
         **CONSTRAINTS (CRITICAL):**
         -   You **MUST output ONLY a single JSON object**.
@@ -283,17 +286,14 @@ class DataMapperAgent:
 ,
         }
 
-    # -----------------------------------------------------------
-    #                       II. Public Interface
-    # -----------------------------------------------------------
-
+    # Public Interface
     async def analyze_schemas(self, invoices_df: pd.DataFrame, pos_df: pd.DataFrame, grs_df: pd.DataFrame) -> Dict[str, Any]:
         """
         Public method to run the entire schema analysis and mapping process.
         Returns the final structured mapping dictionary.
         """
         
-        # 1. Ingest and Summarize Input DataFrames
+        # Ingest and Summarize Input DataFrames
         invoice_summary = self._summarize_input_df(invoices_df)
         pos_summary = self._summarize_input_df(pos_df)
         grs_summary = self._summarize_input_df(grs_df)
@@ -305,26 +305,26 @@ class DataMapperAgent:
             "grs_df": grs_summary
         }
 
-        # 2. Construct a Structured Prompt for the LLM
+        # Construct a Structured Prompt for the LLM
         system_prompt = self._build_llm_prompt()
 
-        # 3. Initialize Agent with System Prompt
+        # Initialize Agent with System Prompt
         self.agent = AssistantAgent(
             name="DataMapperAgent",
             model_client=self.model_client,
             system_message=system_prompt
         )
 
-        # 4. Call the LLM
+        # Call the LLM
         task_prompt = "Analyze the provided data schemas and return the complete data mapping object strictly following the JSON format and constraints defined in your system prompt."
         
         response = await self.agent.run(task=task_prompt)
         raw_llm_output = response.messages[-1].content
         
-        # 5. Parse the LLM's Response
+        # Parse the LLM's Response
         parsed_response = self._json_parser(raw_llm_output)
 
-        # 6. Return Final Mapping Dictionary
+        # Return Final Mapping Dictionary
         return parsed_response
 
 class MatchingAgent(RoutedAgent):
@@ -645,20 +645,20 @@ class AnalysisAgent(RoutedAgent):
                 "fraud_indicators": []
             }
         
-        # 1. Vendor Risk Analysis (enhanced)
-        vendor_risk = self._analyze_vendor_risk_enhanced(
+        # Vendor Risk Analysis
+        vendor_risk = self._analyze_vendor_risk(
             exceptions_df, 
             vendor_risk_df,
             prepared_inv
         )
         
-        # 2. Temporal Analysis
+        # Temporal Analysis
         temporal_patterns = self._analyze_temporal_patterns(exceptions_df, prepared_inv)
         
-        # 3. Fraud Detection
+        # Fraud Detection
         fraud_indicators = self._detect_fraud_patterns(exceptions_df, prepared_inv)
         
-        # 4. Create Analysis Summary
+        # Create Analysis Summary
         analysis_summary = self._create_analysis_summary(
             exceptions_df, 
             matched_df,
@@ -666,14 +666,14 @@ class AnalysisAgent(RoutedAgent):
             fraud_indicators
         )
         
-        # 5. Get LLM Analysis
+        # Get LLM Analysis
         llm_analysis = await self._get_llm_analysis(
             analysis_summary, 
             query,
             cancellation_token
         )
         
-        # 6. Extract patterns and recommendations
+        # Extract patterns and recommendations
         patterns, recommendations = self._parse_llm_response(llm_analysis)
         
         return {
@@ -686,13 +686,13 @@ class AnalysisAgent(RoutedAgent):
             "fraud_indicators": fraud_indicators
         }
     
-    def _analyze_vendor_risk_enhanced(
+    def _analyze_vendor_risk(
         self, 
         exceptions_df: pd.DataFrame,
         vendor_risk_df: Optional[pd.DataFrame],
         prepared_inv: Optional[pd.DataFrame]
     ) -> pd.DataFrame:
-        """Enhanced vendor risk analysis with behavioral patterns"""
+        """Vendor risk analysis with behavioral patterns"""
         
         if vendor_risk_df is not None and not vendor_risk_df.empty:
             # Use existing vendor risk from matcher
@@ -784,7 +784,7 @@ class AnalysisAgent(RoutedAgent):
         """Detect potential fraud indicators"""
         fraud_indicators = []
         
-        # 1. High rate of NO_PO exceptions (potential ghost invoices)
+        # High rate of NO_PO exceptions (potential ghost invoices)
         if 'type' in exceptions_df.columns:
             no_po_count = (exceptions_df['type'] == 'NO_PO').sum()
             no_po_rate = no_po_count / len(exceptions_df) if len(exceptions_df) > 0 else 0
@@ -794,7 +794,7 @@ class AnalysisAgent(RoutedAgent):
                     f"⚠️ HIGH NO_PO RATE: {no_po_rate:.1%} of exceptions lack purchase orders (potential ghost invoices)"
                 )
         
-        # 2. Duplicate invoices (double payment attempt)
+        # Duplicate invoices (double payment attempt)
         if 'type' in exceptions_df.columns:
             dup_count = (exceptions_df['type'] == 'DUPLICATE').sum()
             if dup_count > 0:
@@ -802,7 +802,7 @@ class AnalysisAgent(RoutedAgent):
                     f"🔴 DUPLICATES DETECTED: {dup_count} duplicate invoices found (double payment risk)"
                 )
         
-        # 3. Systematic price variances from specific vendors
+        # Systematic price variances from specific vendors
         if 'type' in exceptions_df.columns and 'vendor' in exceptions_df.columns:
             price_var_vendors = exceptions_df[
                 exceptions_df['type'] == 'PRICE_VARIANCE'
@@ -814,7 +814,7 @@ class AnalysisAgent(RoutedAgent):
                         f"⚠️ SYSTEMATIC OVERBILLING: Vendor '{vendor}' has {count} price variance exceptions"
                     )
         
-        # 4. Large financial impacts
+        # Large financial impacts
         if 'financial_impact' in exceptions_df.columns:
             high_impact = exceptions_df[exceptions_df['financial_impact'] > 10000]
             if not high_impact.empty:
@@ -1000,7 +1000,7 @@ class ReportAgent(RoutedAgent):
         fraud_indicators = message.analysis_results.get("fraud_indicators", [])
         analysis_text = message.analysis_results.get("analysis", "")
 
-        # 🧠 Use LLM to generate the markdown report
+        # Use LLM to generate the markdown report
         llm_report = await self._generate_llm_report(
             company_name=message.company_name,
             auditor_name=message.auditor_name,
@@ -1016,7 +1016,7 @@ class ReportAgent(RoutedAgent):
             cancellation_token=ctx.cancellation_token
         )
 
-        # Keep local summary + metadata logic (unchanged)
+        # local summary + metadata
         summary = {
             "total_invoices": stats.get("total_invoices", 0),
             "match_rate": stats.get("match_rate_pct", 0),
@@ -1111,7 +1111,7 @@ class ReportAgent(RoutedAgent):
 
         Create a professional Markdown report following all the guidelines provided."""
 
-        # Call LLM via OpenAIChatCompletionClient - FIXED VERSION
+        # Call LLM via OpenAIChatCompletionClient
         try:
             # Create proper message objects instead of dicts
             messages = [
